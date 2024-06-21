@@ -21,6 +21,7 @@ module if_stage(
 	input  [`XLEN-1:0] ex_mem_target_pc,        // target pc: use if take_branch is TRUE
 	input  [63:0] Imem2proc_data,          // Data coming back from instruction-memory//why 64bits, cuz Imem could only provide 64bits result(2 instructions)
 	output logic [`XLEN-1:0] proc2Imem_addr,    // Address sent to Instruction memory
+	output if_id_enable, //load-use hazard, used to stall id stage
 	output IF_ID_PACKET if_packet_out         // Output data packet from IF going to ID, see sys_defs for signal information 
 );
 
@@ -46,7 +47,8 @@ module if_stage(
 	
 	// The take-branch signal must override stalling (otherwise it may be lost), then true stalling in ID stage
 	// assign PC_enable = if_packet_out.valid | ex_mem_take_branch;
-	assign PC_enable = (~if_stall && if_packet_out.valid) | ex_mem_take_branch; //load-use hazard
+	assign PC_enable = (~if_stall && if_packet_out.valid) || ex_mem_take_branch; //load-use hazard
+	assign if_id_enable = ~if_stall && ~ex_mem_take_branch;//load-use hazard
 	
 	// Pass PC+4 down pipeline w/instruction
 	assign if_packet_out.NPC = PC_plus_4;
@@ -71,6 +73,7 @@ module if_stage(
 			if_packet_out.valid <= `SD 1;  // must start with something
 		else
 			// if_packet_out.valid <= `SD mem_wb_valid_inst;
-			if_packet_out.valid <= `SD 1;
+			// if_packet_out.valid <= `SD 1;//make it pipeline
+			if_packet_out.valid <= `SD ~if_stall;//load-use hazard
 	end
 endmodule  // module if_stage

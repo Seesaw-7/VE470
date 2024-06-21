@@ -19,8 +19,8 @@
   //
 module decoder(
 
-	//input [31:0] inst,
-	//input valid_inst_in,  // ignore inst when low, outputs will
+	// input [31:0] inst,
+	// input valid_inst_in,  // ignore inst when low, outputs will
 	                      // reflect noop (except valid_inst)
 	//see sys_defs.svh for definition
 	input IF_ID_PACKET if_packet,
@@ -28,7 +28,7 @@ module decoder(
 	output ALU_OPA_SELECT opa_select,
 	output ALU_OPB_SELECT opb_select,
 	output DEST_REG_SEL   dest_reg, // mux selects
-	output ALU_FUNC       alu_func,
+	output ALU_FUNC       alu_func, 
 	output logic rd_mem, wr_mem, cond_branch, uncond_branch,
 	output logic csr_op,    // used for CSR operations, we only used this as 
 	                        //a cheap way to get the return code out
@@ -226,14 +226,21 @@ module id_stage(
 	input         wb_reg_wr_en_out,    // Reg write enable from WB Stage
 	input  [4:0] wb_reg_wr_idx_out,  // Reg write index from WB Stage
 	input  [`XLEN-1:0] wb_reg_wr_data_out,  // Reg write data from WB Stage
+	input ex_memRead, //load-use hazard
+	input [4:0] ex_rd_idx, //load-use hazard
 	input  IF_ID_PACKET if_id_packet_in,
 	
+	output logic if_stall, //stall PC update
 	output ID_EX_PACKET id_packet_out
 );
 
+	logic valid_inst;
+	wire is_load_use_hazard = ex_memRead && ((ex_rd_idx == if_id_packet_in.inst.r.rs1) || (ex_rd_idx == if_id_packet_in.inst.r.rs2));
     assign id_packet_out.inst = if_id_packet_in.inst;
     assign id_packet_out.NPC  = if_id_packet_in.NPC;
     assign id_packet_out.PC   = if_id_packet_in.PC;
+	assign id_packet_out.rs1_idx = if_id_packet_in.inst.r.rs1; //load-use hazard
+	assign id_packet_out.rs2_idx = if_id_packet_in.inst.r.rs2; //load-use hazard
 	DEST_REG_SEL dest_reg_select; 
 
 	// Instantiate the register file used by this pipeline
@@ -265,8 +272,12 @@ module id_stage(
 		.csr_op(id_packet_out.csr_op),
 		.halt(id_packet_out.halt),
 		.illegal(id_packet_out.illegal),
-		.valid_inst(id_packet_out.valid)
+		// .valid_inst(id_packet_out.valid)
+		.valid_inst(valid_inst) //load-use hazard
 	);
+
+	assign id_packet_out.valid = valid_inst && ~is_load_use_hazard; //load-use hazard
+	assign if_stall = is_load_use_hazard; //load-use hazard
 
 	// mux to generate dest_reg_idx based on
 	// the dest_reg_select output from decoder
@@ -277,5 +288,8 @@ module id_stage(
 			default:    id_packet_out.dest_reg_idx = `ZERO_REG; 
 		endcase
 	end
+
+
+	
    
 endmodule // module id_stage

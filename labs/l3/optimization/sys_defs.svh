@@ -120,6 +120,16 @@ typedef enum logic [4:0] {
 	ALU_REMU    = 5'h11
 } ALU_FUNC;
 
+//
+// ALU forwarding path select
+//
+typedef enum logic [1:0] {
+	PATH_IS_ORIGINAL  = 2'h0,
+	PATH_IS_FROM_WB   = 2'h1,
+	PATH_IS_FROM_MEM  = 2'h2
+} ALU_FORWARD_SELECT;
+
+
 //////////////////////////////////////////////
 //
 // Assorted things it is not wise to change
@@ -267,7 +277,8 @@ typedef struct packed {
 	logic [`XLEN-1:0] PC;    // PC
 
 	logic [`XLEN-1:0] rs1_value;    // reg A value                                  
-	logic [`XLEN-1:0] rs2_value;    // reg B value                                  
+	logic [`XLEN-1:0] rs2_value;    // reg B value     
+	logic [4:0] rs1_idx, rs2_idx;   // pipelined reg A/B index                            
 	                                                                                
 	ALU_OPA_SELECT opa_select; // ALU opa mux select (ALU_OPA_xxx *)
 	ALU_OPB_SELECT opb_select; // ALU opb mux select (ALU_OPB_xxx *)

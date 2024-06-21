@@ -26,10 +26,12 @@ module mem_stage(
 	output logic [1:0] proc2Dmem_command,
 	output MEM_SIZE proc2Dmem_size,
 	output logic [`XLEN-1:0] proc2Dmem_addr,      // Address sent to data-memory
-	output logic [`XLEN-1:0] proc2Dmem_data      // Data sent to data-memory
+	output logic [`XLEN-1:0] proc2Dmem_data,      // Data sent to data-memory
+	output logic       reg_wr_en_out  //pipelined regWrite signal at current stage
 );
 
 
+	assign reg_wr_en_out  = ex_mem_packet_in.dest_reg_idx != `ZERO_REG;
 
 	// Determine the command that must be sent to mem
 	assign proc2Dmem_command =

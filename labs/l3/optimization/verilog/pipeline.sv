@@ -82,6 +82,7 @@ module pipeline (
 
 	// Outputs from ID stage
 	ID_EX_PACKET id_packet;
+	logic if_stall;
 
 	// Outputs from ID/EX Pipeline Register
 	ID_EX_PACKET id_ex_packet;
@@ -97,6 +98,7 @@ module pipeline (
 	logic [`XLEN-1:0] proc2Dmem_data;
 	logic [1:0]  proc2Dmem_command;
 	MEM_SIZE proc2Dmem_size;
+	logic mem_reg_wr_en_out; // pipeline forward
 
 	// Outputs from MEM/WB Pipeline Register
 	logic        mem_wb_halt;
@@ -147,6 +149,7 @@ module pipeline (
 		.clock (clock),
 		.reset (reset),
 		.mem_wb_valid_inst(mem_wb_valid_inst),
+		.if_stall(if_stall),//load-use hazard
 		.ex_mem_take_branch(ex_mem_packet.take_branch),
 		.ex_mem_target_pc(ex_mem_packet.alu_result),
 		.Imem2proc_data(mem2proc_data),
@@ -195,8 +198,10 @@ module pipeline (
 		.wb_reg_wr_en_out   (wb_reg_wr_en_out),
 		.wb_reg_wr_idx_out  (wb_reg_wr_idx_out),
 		.wb_reg_wr_data_out (wb_reg_wr_data_out),
-		
+		.ex_memRead(id_ex_packet.rd_mem),//load use hazard
+		.ex_rd_idx(id_ex_packet.dest_reg_idx),//load use hazard
 		// Outputs
+		.if_stall(if_stall),//load use hazard
 		.id_packet_out(id_packet)
 	);
 
@@ -219,6 +224,8 @@ module pipeline (
 				{`XLEN{1'b0}}, 
 				{`XLEN{1'b0}}, 
 				{`XLEN{1'b0}}, 
+				5'b0,
+				5'b0,
 				OPA_IS_RS1, 
 				OPB_IS_RS2, 
 				`NOP,
@@ -250,6 +257,12 @@ module pipeline (
 		// Inputs
 		.clock(clock),
 		.reset(reset),
+		.mem_rd_idx(ex_mem_packet.dest_reg_idx), // output from ex/mem pipeline reg (pipeline forward)
+		.wb_rd_idx(mem_wb_dest_reg_idx), //output from mem/wb pipeline reg (pipeline forward)
+		.mem_regWrite(mem_reg_wr_en_out), //output from mem stage (pipeline forward)
+		.wb_regWrite(wb_reg_wr_en_out), //output from wb stage (pipeline forward)
+		.mem_alu_result(ex_mem_packet.alu_result), //output from ex/mem pipeline reg (pipeline forward)
+		.reg_wb_result(wb_reg_wr_data_out), //output from wb stage (pipeline forward)
 		.id_ex_packet_in(id_ex_packet),
 		// Outputs
 		.ex_packet_out(ex_packet)
@@ -298,7 +311,8 @@ module pipeline (
 		.proc2Dmem_command(proc2Dmem_command),
 		.proc2Dmem_size(proc2Dmem_size),
 		.proc2Dmem_addr(proc2Dmem_addr),
-		.proc2Dmem_data(proc2Dmem_data)
+		.proc2Dmem_data(proc2Dmem_data),
+		.reg_wr_en_out(mem_reg_wr_en_out) //pipelined
 	);
 
 

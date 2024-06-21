@@ -99,6 +99,10 @@ endmodule // brcond
 module ex_stage(
 	input clock,               // system clock
 	input reset,               // system reset
+	input [4:0] mem_rd_idx, wb_rd_idx, //pipelined rd (for data forwarding)
+	input mem_regWrite, wb_regWrite, // pipelined regWrite control signal (for data forwarding)
+	input [`XLEN-1:0] mem_alu_result, // forwarded from the output of ex/mem state reg
+	input [`XLEN-1:0] reg_wb_result, // forwarded from the output of wb stage
 	input ID_EX_PACKET   id_ex_packet_in,
 	output EX_MEM_PACKET ex_packet_out
 );
@@ -114,7 +118,8 @@ module ex_stage(
 	assign ex_packet_out.valid = id_ex_packet_in.valid;
 	assign ex_packet_out.mem_size = id_ex_packet_in.inst.r.funct3;
 
-	logic [`XLEN-1:0] opa_mux_out, opb_mux_out;
+	logic [`XLEN-1:0] opa_mux_out, opb_mux_out, opa_forward_mux_out, opb_forward_mux_out;
+	ALU_FORWARD_SELECT forward1, forward2;
 	logic brcond_result;
 	//
 	// ALU opA mux
@@ -128,6 +133,7 @@ module ex_stage(
 			OPA_IS_ZERO: opa_mux_out = 0;
 		endcase
 	end
+
 
 	 //
 	 // ALU opB mux
@@ -147,11 +153,44 @@ module ex_stage(
 	end
 
 	//
+	// instantiate the Forwarding Unit
+	//
+	forwarding_unit forward (
+		.rs1(id_ex_packet_in.rs1_idx),
+		.rs2(id_ex_packet_in.rs2_idx),
+		.mem_rd(mem_rd_idx),
+		.wb_rd(wb_rd_idx),
+		.mem_regWrite(mem_regWrite),
+		.wb_regWrite(wb_regWrite),
+		.forward1(forward1),
+		.forward2(forward2)
+	);
+
+
+	always_comb begin
+		opa_forward_mux_out = opa_mux_out;
+		case(forward1)
+			PATH_IS_ORIGINAL: opa_forward_mux_out = opa_mux_out;
+			PATH_IS_FROM_MEM: opa_forward_mux_out = mem_alu_result;
+			PATH_IS_FROM_WB : opa_forward_mux_out = reg_wb_result;
+		endcase
+	end
+
+	always_comb begin
+		opb_forward_mux_out = opb_mux_out;
+		case(forward2)
+			PATH_IS_ORIGINAL: opb_forward_mux_out = opb_mux_out;
+			PATH_IS_FROM_MEM: opb_forward_mux_out = mem_alu_result;
+			PATH_IS_FROM_WB : opb_forward_mux_out = reg_wb_result;
+		endcase
+	end
+
+	//
 	// instantiate the ALU
 	//
 	alu alu_0 (// Inputs
-		.opa(opa_mux_out),
-		.opb(opb_mux_out),
+		.opa(opa_forward_mux_out),
+		.opb(opb_forward_mux_out),
 		.func(id_ex_packet_in.alu_func),
 
 		// Output
